@@ -1,4 +1,4 @@
-
+// this file is also temporary
 
 // Register a new user
 document.getElementById('registerForm').addEventListener('submit', function(e) {
