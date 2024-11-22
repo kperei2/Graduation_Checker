@@ -11,10 +11,12 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
 // Database connection
+// this file is just temporary please change the user and the password when running for the first time
+//use the username and password for what you have set up in mysql
 const db = mysql.createConnection({
     host: 'localhost',
-    user: 'root', 
-    password: '1562',
+    user: 'enter user here', 
+    password: 'enter passcode here',
     database: 'CS_Student_Graduation_Checker'
 });
 
