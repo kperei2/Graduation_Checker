@@ -39,45 +39,68 @@ function closeSearchPopup() {
 
 function updateTotalCredits() {
     let totalCredits = 0;
+    let inProgressCredits = 0;
+    let plannedCredits = 0;
     const tables = document.getElementsByClassName('semester-table');
     
     Array.from(tables).forEach(table => {
         let semesterCredits = 0;
         // Skip the header row, start from index 1
         for (let i = 1; i < table.rows.length; i++) {
-            const creditsText = table.rows[i].cells[1].textContent;
+            const row = table.rows[i];
+            const creditsText = row.cells[1].textContent;
             const credits = parseInt(creditsText);
+            
+            // Get status
+            const completedTag = row.querySelector('.status-tag.completed.active');
+            const inProgressTag = row.querySelector('.status-tag.in-progress.active');
+            const plannedTag = row.querySelector('.status-tag.planned.active');
+            
+            // Only add to total credits if completed or in progress
+            if (completedTag || inProgressTag) {
+                totalCredits += credits;
+            }
+            
+            // Track in-progress credits separately
+            if (inProgressTag) {
+                inProgressCredits += credits;
+            }
+            
+            // Track planned credits separately
+            if (plannedTag) {
+                plannedCredits += credits;
+            }
+            
+            // Always add to semester credits (including planned)
             semesterCredits += credits;
-            totalCredits += credits;
         }
         
         // Update semester credits counter
         const creditsCounter = table.parentElement.querySelector('.semester-credits span');
-        creditsCounter.textContent = `Total Credits: ${semesterCredits}`;
+        creditsCounter.textContent = `Total Semester Credits: ${semesterCredits}`;
     });
     
     // Update the main credit counter
-    creditCounter.textContent = `${totalCredits} / 128`;
-
-    // Update progress bar
-    const progressFill = document.querySelector('.progress-fill');
-    const percentage = (totalCredits / 128) * 100;
-    progressFill.style.width = `${Math.min(percentage, 100)}%`;
+    creditCounter.textContent = `Total Credits: ${totalCredits} / 128`;
+    
+    // Update the in-progress counter
+    document.querySelector('.in-progress-counter').textContent = `In Progress Credits: ${inProgressCredits} / 128`;
+    
+    // Update the planned counter
+    document.querySelector('.planned-counter').textContent = `Planned Credits: ${plannedCredits} / 128`;
 }
 
 function addCourseToSemester(code, name, credits) {
     if (!currentSemesterTable) return;
     
-    // Check if adding this course would exceed the credit limit
+    // Check credit limit
     const table = currentSemesterTable.querySelector('.semester-table');
     const currentCredits = Array.from(table.rows)
-        .slice(1) // Skip header row
+        .slice(1)
         .reduce((sum, row) => sum + parseInt(row.cells[1].textContent), 0);
     
     if (currentCredits + credits > 23) {
-        // Close search popup
         closeSearchPopup();
-        // Show warning popup
         showWarningPopup();
         return;
     }
@@ -91,17 +114,35 @@ function addCourseToSemester(code, name, credits) {
             </div>
         </td>
         <td class="course-credits">${credits}</td>
+        <td>
+            <div class="status-tags">
+                <span class="status-tag completed" data-status="completed">Completed</span>
+                <span class="status-tag in-progress" data-status="in-progress">In Progress</span>
+                <span class="status-tag planned" data-status="planned">Planned</span>
+            </div>
+        </td>
         <td><button class="delete-course-btn" onclick="removeCourse(this)">×</button></td>
     `;
+    
+    // Add click handlers for status tags
+    const statusTags = row.querySelectorAll('.status-tag');
+    statusTags.forEach(tag => {
+        tag.addEventListener('click', function() {
+            statusTags.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            updateProgressBar();
+            updateTotalCredits();
+        });
+    });
     
     table.appendChild(row);
     updateTotalCredits();
 }
 
 function removeCourse(button) {
-    const row = button.closest('tr');
-    row.remove();
-    updateTotalCredits();
+    button.closest('tr').remove();
+    updateTotalCredits();  // Keep this to update semester credits
+    // Remove updateProgressBar() from here since we only want it to update when status changes
     
     // Refresh search results if search popup is open
     if (searchPopup.style.display === 'block') {
@@ -242,6 +283,19 @@ function createSemesterTable(semesterName) {
     deleteButton.onclick = () => {
         container.remove();
         updateTotalCredits();
+        
+        // Reset progress bar completely
+        const progressBar = document.querySelector('.progress-bar');
+        progressBar.innerHTML = `
+            <div class="progress-fill completed" style="width: 0%"></div>
+            <div class="progress-fill in-progress" style="width: 0%"></div>
+            <div class="progress-fill planned" style="width: 0%"></div>
+        `;
+        
+        // Only update progress bar if there are remaining semesters
+        if (document.querySelectorAll('.semester-table').length > 0) {
+            updateProgressBar();
+        }
     };
     
     buttonContainer.appendChild(searchButton);
@@ -255,29 +309,17 @@ function createSemesterTable(semesterName) {
     
     // Create header row
     const headerRow = document.createElement('tr');
-    
-    // Course column with code and name
-    const courseHeader = document.createElement('td');
-    courseHeader.className = 'header-cell';
-    courseHeader.innerHTML = `
-        <div class="course-header">
-            <span class="header-code">Course</span>
-            <span class="header-name">Course Name</span>
-        </div>
+    headerRow.innerHTML = `
+        <td class="header-cell">
+            <div class="course-header">
+                <span class="header-code">Course</span>
+                <span class="header-name">Course Name</span>
+            </div>
+        </td>
+        <td class="credits-header">Credits</td>
+        <td class="status-header">Status</td>
+        <td></td>
     `;
-    
-    // Credits header
-    const creditsHeader = document.createElement('td');
-    creditsHeader.innerHTML = '<span>Credits</span>';
-    creditsHeader.className = 'credits-header';
-    
-    // Empty header for delete button column
-    const deleteHeader = document.createElement('td');
-    deleteHeader.textContent = '';
-    
-    headerRow.appendChild(courseHeader);
-    headerRow.appendChild(creditsHeader);
-    headerRow.appendChild(deleteHeader);
     
     table.appendChild(headerRow);
     
@@ -287,7 +329,7 @@ function createSemesterTable(semesterName) {
     // Add semester credits counter
     const creditsCounter = document.createElement('div');
     creditsCounter.className = 'semester-credits';
-    creditsCounter.innerHTML = '<span>Total Credits: 0</span>';
+    creditsCounter.innerHTML = '<span>Total Semester Credits: 0</span>';
     container.appendChild(creditsCounter);
     
     return container;
@@ -330,4 +372,47 @@ function showWarningPopup() {
 
 function closeWarningPopup() {
     document.getElementById('warningPopup').style.display = 'none';
+}
+
+function updateProgressBar() {
+    const totalCredits = 128; // Total credits needed
+    const courses = document.querySelectorAll('.semester-table tr:not(:first-child)');
+    let completedCredits = 0;
+    let inProgressCredits = 0;
+    let plannedCredits = 0;
+
+    courses.forEach(course => {
+        const credits = parseInt(course.querySelector('.course-credits').textContent);
+        const statusTags = course.querySelectorAll('.status-tag');
+        
+        // Check which status is active
+        statusTags.forEach(tag => {
+            if (tag.classList.contains('active')) {
+                if (tag.classList.contains('completed')) {
+                    completedCredits += credits;
+                } else if (tag.classList.contains('in-progress')) {
+                    inProgressCredits += credits;
+                } else if (tag.classList.contains('planned')) {
+                    plannedCredits += credits;
+                }
+            }
+        });
+    });
+
+    // Calculate percentages
+    const completedPercentage = (completedCredits / totalCredits) * 100;
+    const inProgressPercentage = (inProgressCredits / totalCredits) * 100;
+    const plannedPercentage = (plannedCredits / totalCredits) * 100;
+
+    // Update progress bar
+    const progressBar = document.querySelector('.progress-bar');
+    progressBar.innerHTML = `
+        <div class="progress-fill completed" style="width: ${completedPercentage}%"></div>
+        <div class="progress-fill in-progress" style="width: ${inProgressPercentage}%"></div>
+        <div class="progress-fill planned" style="width: ${plannedPercentage}%"></div>
+    `;
+
+    // Update counter
+    const totalCurrentCredits = completedCredits + inProgressCredits + plannedCredits;
+    document.querySelector('.counter').textContent = `${totalCurrentCredits} / ${totalCredits}`;
 }
