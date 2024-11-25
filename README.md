@@ -1,3 +1,11 @@
+## TEMP INSTRUCTIONS ##
+run all queries in grad_check.sql
+open new terminal:
+npm init -y
+npm install
+npm start
+
+
 ## Computer Science Student Graduation Checker
 
 Disclaimer: This is a collaborative project where I primarily worked on the SQL backend. This project may continue to evolve as we refine and add new features.
