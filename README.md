@@ -1,9 +1,15 @@
 ## TEMP INSTRUCTIONS ##
 run all queries in grad_check.sql
+
 open new terminal:
+
+
 npm init -y
+
 npm install
+
 npm start
+
 
 
 ## Computer Science Student Graduation Checker
